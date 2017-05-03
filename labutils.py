@@ -8,6 +8,7 @@ import matplotlib.image as mpimg
 import glob
 import time
 import os 
+import os.path
 import itertools
 from moviepy.editor import VideoFileClip, ImageSequenceClip
 from skimage.feature import hog as skhog
@@ -238,7 +239,7 @@ def prepare_dataset(base_dir, tgt_file):
     count = 0
     with open(tgt_file, 'w') as f:
         for dir in dirs:
-            for fn in glob.glob(base_dir+dir+'\\*'):
+            for fn in glob.glob(os.path.join(base_dir,dir,'*')):
                 count +=1
                 f.write(fn+'\n')
     return count
