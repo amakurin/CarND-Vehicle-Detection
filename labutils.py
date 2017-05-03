@@ -124,9 +124,11 @@ def get_feats(imgs, params):
 
 def prepare_train_test_sets(cars, noncars, params={},
                             test_size=0.2, random_state=0, take_samples=None):
-    if take_samples is not None:
-        cars = cars[:take_samples]
-        noncars = noncars[:take_samples]
+    if take_samples is None:
+        take_samples = min(len(cars), len(noncars))
+
+    cars = cars[:take_samples]
+    noncars = noncars[:take_samples]
 
     car_imgs = [imread(imf) for imf in cars]
     noncar_imgs = [imread(imf) for imf in noncars]
@@ -159,7 +161,7 @@ def test_clf(clf, X, y, n_predicts=None):
     t=time.time()
     y_predicted = clf.predict(X)
     t2 = time.time()
-    return y_predicted, y, accuracy, round(t2-t, 7)
+    return y_predicted, y, accuracy, round((t2-t)/len(X), 7)
 
 def gen_param_set(param_ranges):
     def filter_without(filt, params_set, keys):
@@ -197,6 +199,33 @@ def gen_param_set(param_ranges):
 
     return params_set
 
+def build_classifier(cars, noncars, params, nsamples=None, result_file=None):
+    train, test, scaler, exttime = prepare_train_test_sets(cars, noncars, 
+                                        params=params, take_samples=nsamples)
+    print (exttime,'s per img to extract')
+
+    clf, traintime = train_svm(train[0], train[1])
+
+    print (traintime,'s to train')
+    
+    y_predicted, y, accuracy, predtime = test_clf(clf, test[0], test[1])
+
+    print (predtime,'s per img to predict')
+    print ('accuracy', accuracy)
+    print ('total time for',len(y),'imgs =',round((exttime+predtime)*len(y),4),'s')
+    if (result_file is not None):
+        result = {'clf': clf, 'scaler': scaler, 'params': params,
+                  'accuracy': accuracy, 'exttime': exttime, 
+                  'predtime': predtime, 'traintime': traintime}
+        save(result, result_file)
+    return clf, scaler, params, accuracy, exttime, predtime, traintime  
+
+def predict(imgs, clf, scaler, params):
+    X = get_feats(imgs, params)
+    scaled_X = scaler.transform(X)
+    y_predicted = clf.predict(scaled_X)
+    return y_predicted
+
 def brute_force_params(cars, noncars, params_ranges, nsamples, result_file, save_each=20):
     params_sets = gen_param_set(params_ranges)
     total = len(params_sets)
@@ -207,32 +236,72 @@ def brute_force_params(cars, noncars, params_ranges, nsamples, result_file, save
         t = time.time()
         print ('----------- {} of {}--------------'.format(cur,total))
         print ('params:', ps,'\n')
-        train, test, scaler, exttime = prepare_train_test_sets(cars, noncars, 
-                                            params=ps, take_samples=nsamples)
-        print (exttime,'s per img to extract')
-
-        clf, trtime = train_svm(train[0], train[1])
-
-        print (trtime,'s to train')
-        
-        y_predicted, y, accuracy, predtime = test_clf(clf, test[0], test[1])
-
-        print (predtime,'s to predict', len(y),'samples')
-        print ('accuracy', accuracy)
-        print ('total time for',len(y),'imgs =',exttime*len(y)+predtime,'s')
+        clf, scaler, params, accuracy, exttime, predtime, traintime = build_classifier(cars, noncars, ps, nsamples)
         t2 = time.time()
         last_time = t2-t
         spend_time += last_time
         print ('----------- {}m of {}m--------------'.format(round(spend_time/60,1),
                                                              round(total*last_time/60,1)))
-        result.append([ps, [exttime, predtime/len(y), accuracy, trtime]])
-        if result_file and (cur >= save_each) and (cur % save_each == 0):
+        result.append([ps, [exttime, predtime, accuracy, traintime]])
+        if (result_file is not None) and (cur >= save_each) and (cur % save_each == 0):
             save(result, result_file)
         cur += 1
 
-    if result_file:
+    if (result_file is not None):
         save(result, result_file)
     return result
+
+def slide_window(img, x_start_stop=[None, None], y_start_stop=[None, None], 
+                    xy_window=(64, 64), xy_overlap=(0.5, 0.5)):
+    # If x and/or y start/stop positions not defined, set to image size
+    if x_start_stop[0] == None:
+        x_start_stop[0] = 0
+    if x_start_stop[1] == None:
+        x_start_stop[1] = img.shape[1]
+    if y_start_stop[0] == None:
+        y_start_stop[0] = 0
+    if y_start_stop[1] == None:
+        y_start_stop[1] = img.shape[0]
+    # Compute the span of the region to be searched    
+    xspan = x_start_stop[1] - x_start_stop[0]
+    yspan = y_start_stop[1] - y_start_stop[0]
+    # Compute the number of pixels per step in x/y
+    nx_pix_per_step = np.int(xy_window[0]*(1 - xy_overlap[0]))
+    ny_pix_per_step = np.int(xy_window[1]*(1 - xy_overlap[1]))
+    # Compute the number of windows in x/y
+    nx_buffer = np.int(xy_window[0]*(xy_overlap[0]))
+    ny_buffer = np.int(xy_window[1]*(xy_overlap[1]))
+    nx_windows = np.int((xspan-nx_buffer)/nx_pix_per_step) 
+    ny_windows = np.int((yspan-ny_buffer)/ny_pix_per_step) 
+    # Initialize a list to append window positions to
+    window_list = []
+    # Loop through finding x and y window positions
+    # Note: you could vectorize this step, but in practice
+    # you'll be considering windows one by one with your
+    # classifier, so looping makes sense
+    for ys in range(ny_windows):
+        starty = ys*ny_pix_per_step + y_start_stop[0]
+        endy = starty + xy_window[1]
+        for xs in range(nx_windows):
+            # Calculate window position
+            startx = xs*nx_pix_per_step + x_start_stop[0]
+            endx = startx + xy_window[0]
+            # Append window position to list
+            window_list.append(((startx, starty), (endx, endy)))
+        if endx < xspan:
+            window_list.append(((xspan-xy_window[0], starty), (xspan, endy)))
+    # Return the list of windows
+    return window_list
+
+def draw_boxes(img, bboxes, color=(0, 0, 255), thick=6):
+    # Make a copy of the image
+    imcopy = np.copy(img)
+    # Iterate through the bounding boxes
+    for bbox in bboxes:
+        # Draw a rectangle given bbox coordinates
+        cv2.rectangle(imcopy, tuple(bbox[0]), tuple(bbox[1]), color, thick)
+    # Return the image copy with boxes drawn
+    return imcopy
 
 def prepare_dataset(base_dir, tgt_file):
     dirs = os.listdir(base_dir)
