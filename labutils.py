@@ -49,7 +49,7 @@ def hist_feats(img, cspace = 'RGB', chan_range=None, bins=32, hrange=(0, 256)):
             bounds = chan_range.split(':')
             chan_range = range(int(bounds[0]), int(bounds[1])+1)    
         for chan in chan_range:
-            hist = [np.histogram(img[:,:,chan], bins=bins, range=hrange) for ch in chans]
+            hist = np.histogram(img[:,:,chan], bins=bins, range=hrange)
             hists.append(hist)
     # Concatenate the histograms into a single feature vector
     hist_features = np.concatenate([hist[0] for hist in hists])

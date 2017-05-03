@@ -24,7 +24,7 @@ params_ranges = {'use_spat'   :[True, False],
                  'use_hist'   :[True, False], 
                  'hist_cspace':['RGB', 'HSV', 'LUV', 'HLS', 'YCrCb'],
                  'hist_bins'  :[16, 32],
-                 'hist_chan_range':['0:0', '1:1', '2:2']
+                 'hist_chan_range':['0:0', '1:1', '2:2'],
 
                  'use_hog'    :[True, False],
                  'hog_orient' :[8,9],
