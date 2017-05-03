@@ -1,0 +1,2 @@
+https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip
+https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/non-vehicles.zip
