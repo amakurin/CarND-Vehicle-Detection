@@ -19,18 +19,19 @@ noncars = lu.load_dataset('notcars.txt')
 
 params_ranges = {'use_spat'   :[True, False],
                  'spat_cspace':['RGB'], 
-                 'spat_size'  :[16, 32],
+                 'spat_size'  :[24, 32],
                  
                  'use_hist'   :[True, False], 
-                 'hist_cspace':['RGB'],
+                 'hist_cspace':['RGB', 'HSV', 'LUV', 'HLS', 'YCrCb'],
                  'hist_bins'  :[16, 32],
-                 
+                 'hist_chan_range':['0:0', '1:1', '2:2']
+
                  'use_hog'    :[True, False],
-                 'hog_orient' :[7,8,9],
-                 'hog_pix_per_cell':[6,8], 
+                 'hog_orient' :[8,9],
+                 'hog_pix_per_cell':[6], 
                  'hog_cell_per_block':[2,3],
                  'hog_cspace' :['RGB', 'HSV', 'LUV', 'HLS', 'YCrCb'], 
-                 'hog_chan_range':['0:0', '1:1', '2:2', '0:2']
+                 'hog_chan_range':['0:0', '1:1', '2:2']
                  }
 
 params = {'hist_cspace': 'RGB', 'hog_pix_per_cell': 6, 'hist_bins': 16, 

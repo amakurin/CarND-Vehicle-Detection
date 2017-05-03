@@ -37,11 +37,20 @@ def spatial_feats(img, cspace='RGB', size=32):
     # Return the feature vector
     return features    
 
-def hist_feats(img, cspace = 'RGB', bins=32, hrange=(0, 256)):
-    img = cvt_color(img, cspace)
-    # Compute the histogram of the RGB channels separately
-    chans = [img[:,:,i] for i in range(img.shape[2])]
-    hists = [np.histogram(ch, bins=bins, range=hrange) for ch in chans]
+def hist_feats(img, cspace = 'RGB', chan_range=None, bins=32, hrange=(0, 256)):
+    feature_image = cvt_color(img, cspace)
+    hists = []
+    if len(feature_image.shape)==2:
+        hists= [np.histogram(feature_image, bins=bins, range=hrange)]
+    else:
+        if chan_range is None:
+            chan_range = range(feature_image.shape[2])
+        else:
+            bounds = chan_range.split(':')
+            chan_range = range(int(bounds[0]), int(bounds[1])+1)    
+        for chan in chan_range:
+            hist = [np.histogram(img[:,:,chan], bins=bins, range=hrange) for ch in chans]
+            hists.append(hist)
     # Concatenate the histograms into a single feature vector
     hist_features = np.concatenate([hist[0] for hist in hists])
     return hist_features, hists
@@ -97,10 +106,11 @@ def get_img_feats(img, params={}):
     use_hist           = params.get('use_hist', True)
     hist_cspace        = params.get('hist_cspace', 'RGB')
     hist_bins          = params.get('hist_bins', 32)
+    hist_chan_range    = params.get('hist_chan_range')
     hist_fts           = []
     if use_hist:
-        hist_fts, hists = hist_feats(img, cspace=hist_cspace, 
-                            bins=hist_bins)
+        hist_fts, hists = hist_feats(img, 
+                            cspace=hist_cspace, chan_range=hist_chan_range, bins=hist_bins)
 
     use_hog            = params.get('use_hog', True)
     hog_orient         = params.get('hog_orient', 9)
