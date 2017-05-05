@@ -17,6 +17,7 @@ from sklearn.preprocessing import StandardScaler
 # for scikit-learn >= 0.18 use:
 from sklearn.model_selection import train_test_split
 #from sklearn.cross_validation import train_test_split
+from scipy.ndimage.measurements import label
 
 def cvt_color(img, cspace='RGB'):
     cspacemap = {'RGB':None, 'HSV':cv2.COLOR_RGB2HSV,
@@ -94,6 +95,63 @@ def hog_feats(img, orient, pix_per_cell, cell_per_block,
     hog_features = np.ravel(hog_features)
     return hog_features
 
+def hog_precalculate(img, params):
+    orient = params['hog_orient']
+    pix_per_cell = params['hog_pix_per_cell'] 
+    cell_per_block= params['hog_cell_per_block']
+    cspace = params['hog_cspace']
+    chan_range = params['hog_chan_range']
+    x_start, x_stop = params['x_bounds']
+    y_start, y_stop = params['y_bounds']
+
+    feature_image = cvt_color(img[y_start:y_stop, x_start:x_stop, :], cspace)
+    hog = []
+    if len(feature_image.shape)==2:
+        hog = [hog_chan_feats(feature_image, orient, 
+                                pix_per_cell, cell_per_block, 
+                                vis=False, feature_vec=False)]
+    else:
+        if chan_range is None:
+            chan_range = range(feature_image.shape[2])
+        else:
+            bounds = chan_range.split(':')
+            chan_range = range(int(bounds[0]), int(bounds[1])+1)    
+        for chan in chan_range:
+            chan_hog = hog_chan_feats(feature_image[:,:,chan], orient, 
+                                pix_per_cell, cell_per_block, 
+                                vis=False, feature_vec=False)
+            hog.append(chan_hog)
+    return hog
+
+def hog_feats_precalc(params):
+    #print ('hog precalc option')
+    win = params['win']
+    pix_per_cell = params['hog_pix_per_cell']
+    precalc = params['hog_precalc']
+    x_start, x_stop = params['x_bounds']
+    y_start, y_stop = params['y_bounds']
+    base_win = np.array(params['base_win'])/pix_per_cell
+
+    wxs = win[0][0]-x_start
+    wxe = win[1][0]-x_start
+    wys = win[0][1]-y_start
+    wye = win[1][1]-y_start 
+
+    wxs_cells = wxs // pix_per_cell 
+    wxe_cells = wxs_cells+int(base_win[0])-1 #wxe // pix_per_cell 
+    wys_cells = wys // pix_per_cell 
+    wye_cells = wys_cells+int(base_win[1])-1 #wye // pix_per_cell 
+    hog_features = []
+    for chan in precalc:
+        chan_feats = chan[wys_cells:wye_cells, wxs_cells:wxe_cells,:,:,:]
+        hog_features.append(chan_feats)
+    #print ('win:',win,'pix_per_cell:',pix_per_cell)
+    #print ('bounds:',(x_start, y_start), (x_stop, y_stop))
+    #print ('ws:',(wxs, wys), (wxe, wye))
+    #print ('wsc:',(wxs_cells, wys_cells), (wxe_cells, wye_cells))
+    #print ('p.shape:',p.shape)
+    return np.ravel(hog_features)
+
 def get_img_feats(img, params={}):
     use_spatial        = params.get('use_spat', True)
     spat_cspace        = params.get('spat_cspace', 'RGB')
@@ -120,16 +178,23 @@ def get_img_feats(img, params={}):
     hog_chan_range     = params.get('hog_chan_range')
     hog_fts            = []
     if use_hog:
-        hog_fts = hog_feats(img, hog_orient, 
-                          hog_pix_per_cell, hog_cell_per_block,
-                          cspace=hog_cspace, chan_range=hog_chan_range)
+        if params.get('hog_precalc') is not None:
+            hog_fts = hog_feats_precalc(params)
+        else:
+            hog_fts = hog_feats(img, hog_orient, 
+                              hog_pix_per_cell, hog_cell_per_block,
+                              cspace=hog_cspace, chan_range=hog_chan_range)
     return np.concatenate((spat_fts, hist_fts, hog_fts))
 
-def get_feats(imgs, params):
+def get_feats(imgs, params, wins = None):
     feats = []
+    i = 0
     for img in imgs:
+        if wins is not None:
+            params['win'] = wins[i]
         img_feats = get_img_feats(img, params)
         feats.append(img_feats)
+        i +=1
     return feats
 
 def prepare_train_test_sets(cars, noncars, params={},
@@ -230,8 +295,8 @@ def build_classifier(cars, noncars, params, nsamples=None, result_file=None):
         save(result, result_file)
     return clf, scaler, params, accuracy, exttime, predtime, traintime  
 
-def predict(imgs, clf, scaler, params):
-    X = get_feats(imgs, params)
+def predict(imgs, clf, scaler, params, wins=None):
+    X = get_feats(imgs, params, wins=wins)
     scaled_X = scaler.transform(X)
     y_predicted = clf.predict(scaled_X)
     return y_predicted
@@ -261,17 +326,17 @@ def brute_force_params(cars, noncars, params_ranges, nsamples, result_file, save
         save(result, result_file)
     return result
 
-def slide_window(img, x_start_stop=[None, None], y_start_stop=[None, None], 
+def slide_window(img_shape, x_start_stop=[None, None], y_start_stop=[None, None], 
                     xy_window=(64, 64), xy_overlap=(0.5, 0.5)):
     # If x and/or y start/stop positions not defined, set to image size
     if x_start_stop[0] == None:
         x_start_stop[0] = 0
     if x_start_stop[1] == None:
-        x_start_stop[1] = img.shape[1]
+        x_start_stop[1] = img_shape[1]
     if y_start_stop[0] == None:
         y_start_stop[0] = 0
-    if y_start_stop[1] == None:
-        y_start_stop[1] = img.shape[0]
+    if y_start_stop[1] == None: 
+        y_start_stop[1] = img_shape[0]
     # Compute the span of the region to be searched    
     xspan = x_start_stop[1] - x_start_stop[0]
     yspan = y_start_stop[1] - y_start_stop[0]
@@ -302,6 +367,107 @@ def slide_window(img, x_start_stop=[None, None], y_start_stop=[None, None],
             window_list.append(((xspan-xy_window[0], starty), (xspan, endy)))
     # Return the list of windows
     return window_list
+
+def prepare_win_specs(win_specs, img_shape, base_win, base_overlap):
+    bounds = []
+    win_specs = win_specs.copy()
+    for ws in win_specs:
+        if 'x_start_stop' not in ws:
+            ws['x_start_stop'] = [0, img_shape[1]]
+        if 'y_start_stop' not in ws:
+            ws['y_start_stop'] = [0, img_shape[0]]
+        if 'xy_window' not in ws:
+            ws['xy_window'] = base_win
+        if 'xy_overlap' not in ws:
+            ws['xy_overlap'] = base_overlap
+
+        x_s, x_e = ws['x_start_stop']
+        y_s, y_e = ws['y_start_stop']
+        bounds.append([x_s, x_e, y_s, y_e])
+    bounds = np.array(bounds)
+    return win_specs, [np.min(bounds[:,0]),np.max(bounds[:,1])], [np.min(bounds[:,2]),np.max(bounds[:,3])]
+
+def search_cars(img, builtclf, win_specs, precalc_hog=False):
+    base_win = [64,64]
+    base_overlap = [0.5,0.5]
+    win_specs, x_bounds, y_bounds = prepare_win_specs(win_specs, img.shape, base_win, base_overlap)
+    wins = []
+    for spec in win_specs:
+        x_start_stop = np.array(spec['x_start_stop'])
+        y_start_stop = np.array(spec['y_start_stop'])
+        cur_win = spec['xy_window']
+        x_scale = base_win[0]/cur_win[0]
+        y_scale = base_win[1]/cur_win[1]
+
+        scaled = cv2.resize(img, (0,0), fx=x_scale, fy=y_scale)
+        params = builtclf['params']
+        params['x_bounds'] = np.uint32(np.array(x_bounds)*x_scale)
+        params['y_bounds'] = np.uint32(np.array(y_bounds)*y_scale)
+        params['base_win'] = base_win
+        if precalc_hog:
+            params['hog_precalc'] = hog_precalculate(scaled, params)
+            
+        spec_wins = slide_window(scaled.shape, 
+                        np.uint32(x_start_stop*x_scale),
+                        np.uint32(y_start_stop*y_scale),
+                        base_win, spec['xy_overlap'])  
+        imgs = [scaled[win[0][1]:win[1][1], win[0][0]:win[1][0]] for win in spec_wins]
+        prediction = predict(imgs,builtclf['clf'], builtclf['scaler'], params, wins=spec_wins)
+        found_wins = np.array(spec_wins)[prediction > 0].tolist()
+        for win in found_wins:
+            win[0][0] = int(win[0][0] / x_scale)
+            win[0][1] = int(win[0][1] / y_scale)
+            win[1][0] = int(win[1][0] / x_scale)
+            win[1][1] = int(win[1][1] / y_scale) 
+        wins.extend(found_wins)
+    return np.array(wins)
+
+def search_cars_v1(img, builtclf, win_specs, precalc_hog=False):
+    wins = []
+    for spec in win_specs:
+        spec_wins = slide_window(img.shape, 
+                        x_start_stop=spec.get('x_start_stop', [None,None]),
+                        y_start_stop=spec.get('y_start_stop', [None,None]),
+                        xy_window=spec.get('xy_window', (64,64)),
+                        xy_overlap=spec.get('xy_overlap', (0.5,0.5)))  
+        wins.extend(spec_wins)
+    imgs = [cv2.resize(img[win[0][1]:win[1][1], win[0][0]:win[1][0]], (64,64)) for win in wins]
+    
+    prediction = predict(imgs,builtclf['clf'], builtclf['scaler'], builtclf['params'], wins=wins)
+
+    wins = np.array(wins)
+    return wins[prediction > 0]
+
+def add_heat(heatmap, bbox_list):
+    # Iterate through list of bboxes
+    for box in bbox_list:
+        # Add += 1 for all pixels inside each bbox
+        # Assuming each "box" takes the form ((x1, y1), (x2, y2))
+        heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]] += 1
+
+    # Return updated heatmap
+    return heatmap
+
+def chan_threshold(chan, lo_thresh):
+    chan[chan <= lo_thresh] = 0
+    return chan
+
+def label_heatmap(heatmap, lo_thresh):
+    heatmap = chan_threshold(heatmap, lo_thresh)
+    labels = label(heatmap)
+    return labels
+
+def labels_bboxes(labels):
+    bboxes = []
+    for car_number in range(1, labels[1]+1):
+        # Find pixels with each car_number label value
+        nonzero = (labels[0] == car_number).nonzero()
+        # Identify x and y values of those pixels
+        nonzeroy = np.array(nonzero[0])
+        nonzerox = np.array(nonzero[1])
+        # Define a bounding box based on min/max x and y
+        bboxes.append(((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy))))
+    return bboxes
 
 def draw_boxes(img, bboxes, color=(0, 0, 255), thick=6):
     # Make a copy of the image

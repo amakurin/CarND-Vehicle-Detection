@@ -6,7 +6,7 @@ import glob
 import cProfile
 import labutils as lu
 import time
-from sklearn.preprocessing import StandardScaler
+import collections as colls
 
 #lu.prepare_dataset('.\\dataset\\vehicles\\','cars.txt')
 #lu.prepare_dataset('.\\dataset\\non-vehicles\\','notcars.txt')
@@ -39,6 +39,13 @@ params = {'hist_cspace': 'RGB', 'hog_pix_per_cell': 6, 'hist_bins': 16,
 'spat_cspace': 'RGB', 'hog_cell_per_block': 2, 'hog_chan_range': '0:0', 
 'use_spat': True, 'spat_size': 32, 'use_hog': True} 
 
+paramsv2 = {'hist_cspace': 'RGB', 'use_hist': True, 
+'hog_pix_per_cell': 6, 'hog_cspace': 'HLS', 
+'hist_bins': 32, 'hog_orient': 9, 
+'spat_cspace': 'RGB', 'hog_chan_range': '1:2', 
+'hist_chan_range': '0:2', 'use_spat': True, 
+'use_hog': True, 'hog_cell_per_block': 2, 'spat_size': 32}
+
 #lu.brute_force_params(cars, noncars, params_ranges, nsamples, 'bfparams.p')
 
 #lu.build_classifier(cars, noncars, params, result_file='clfv1.p')
@@ -49,50 +56,78 @@ tst_imgs = glob.glob(tst_base_path+'*.jpg')
 
 tst_imgs = [lu.imread(imf) for imf in tst_imgs]
 
-#320x1280
-#small = 64x96
-#big = 96x128
+class Pipeline():
+    def __init__(self, builtclf, win_specs, 
+                n_heat_aggregate=3, heat_lo_thresh=2,
+                precalc_hog = False):
+        self.builtclf = builtclf
+        self.win_specs = win_specs
+        self.n_heat_aggregate = n_heat_aggregate
+        self.heat_lo_thresh = heat_lo_thresh
+        self.heatmaps = colls.deque(maxlen=n_heat_aggregate)
+        self.precalc_hog = precalc_hog  
 
+    def sum_heat_map(self, heatmap = None):
+        heatmaps  = list(self.heatmaps)
+        if heatmap is not None:
+            heatmaps.append(heatmap)
+        return np.sum(heatmaps, axis=0)
 
-img = tst_imgs[2]
+    def process_frame(self, frame):
+        zero_heat = np.zeros(frame.shape[:2])
+        if len(self.heatmaps) == 0:
+            self.heatmaps.append(zero_heat)
 
-builtclf = lu.load('clfv1.p')
+        found_wins = lu.search_cars(frame, self.builtclf, self.win_specs, 
+                        precalc_hog = self.precalc_hog)
+        #drawn_found = lu.draw_boxes(frame, found_wins)            
+        heatmap = lu.add_heat(zero_heat, found_wins)
+        totalheat = self.sum_heat_map(heatmap)
+        self.heatmaps.append(heatmap)
+        labels = lu.label_heatmap(totalheat, self.heat_lo_thresh)
+        bboxes = lu.labels_bboxes(labels)
+        drawn_bboxes = lu.draw_boxes(frame, bboxes)            
+        #lu.plot_img_grid([drawn_found, drawn_bboxes])
+        return drawn_bboxes
 
-def search_cars(img, builtclf, win_specs):
-    wins = []
-    for spec in win_specs:
-        spec_wins = lu.slide_window(img, y_start_stop=spec['y_start_stop'],
-                                    xy_window=spec['xy_window'])        
-        wins.extend(spec_wins)
-    
-    imgs = [cv2.resize(img[win[0][1]:win[1][1], win[0][0]:win[1][0]], (64,64)) for win in wins]
-    
-    prediction = lu.predict(imgs, builtclf['clf'], builtclf['scaler'], builtclf['params'])
+    def process_video(self, src_path, tgt_path):
+        lu.process_video(src_path, self.process_frame, tgt_path)
+        pass
 
-    wins = np.array(wins)
-    return wins[prediction > 0]
+builtclf = lu.load('clfv2.p')
 
-#small_wins = lu.slide_window(img, y_start_stop=[400,500], xy_window=(96,64))
+pipeline = Pipeline(builtclf, 
+    [{'y_start_stop':[400,500], 'xy_window':[64,64], 'xy_overlap':[0.7,0.7]},
+     {'y_start_stop':[400,680], 'xy_window':(128,96), 'xy_overlap':[0.7,0.5]}],
+     n_heat_aggregate=3,
+     heat_lo_thresh=3,
+     precalc_hog =True)
 
-#imgs = [cv2.resize(img[win[0][1]:win[1][1], win[0][0]:win[1][0]], (64,64)) for win in small_wins]
-#imgs = np.array(imgs)
-#prediction = np.array(lu.predict(imgs, builtclf['clf'], builtclf['scaler'], builtclf['params']))
-def proc(frame):
-    found_wins = search_cars(frame, builtclf, 
-        [{'y_start_stop':[400,500], 'xy_window':(96,64)},
-        {'y_start_stop':[400,680], 'xy_window':(128,96)}])
-    drawn_found = lu.draw_boxes(frame, found_wins)            
-    #lu.plot_img_grid([drawn_found])
-    return drawn_found
+#print (pipeline.win_specs_max_bounds((720,1280)))
+#pipeline.process_video('test_video.mp4', 'testout2.mp4')
+#pipeline.process_frame(tst_imgs[6])
 
-lu.process_video('project_video.mp4', proc, 'prout1.mp4')
+cProfile.run('pipeline.process_video("test_video.mp4", "testout2.mp4")')
+#cProfile.run('pipeline.process_frame(tst_imgs[6])')
 
-#print ('small cnt:',len(small_wins))
-#drawn_small = lu.draw_boxes(img, small_wins)
-#big_wins = lu.slide_window(img, y_start_stop=[400,680], xy_window=(128,96))
-#print ('big cnt:',len(big_wins))
-#print ('tot cnt:',len(big_wins)+len(small_wins))
-#drawn_big = lu.draw_boxes(img, big_wins)
-
+#img = tst_imgs[6]
+#hls = lu.cvt_color(img, 'HLS')
 #
-#lu.plot_img_grid([drawn_small,drawn_big])
+#t=time.time()
+#hf = lu.hog_chan_feats(hls[400:680,:,1], 9, 6, 2, vis=False, feature_vec=False)
+#t2=time.time()
+#print ('pre:', t2-t)
+#print ('hf.shape:',hf.shape)
+#
+#wins = lu.slide_window(img.shape, 
+#            x_start_stop=[None, None], y_start_stop=[400, 680], 
+#                    xy_window=(64, 64), xy_overlap=(0.5, 0.5))
+#
+#print ('wins cnt:', len(wins))
+#
+#t=time.time()
+#for win in wins:
+#    srch_img = hls[win[0][1]:win[1][1], win[0][0]:win[1][0],1]    
+#    hf = lu.hog_chan_feats(srch_img, 9, 6, 2, vis=False, feature_vec=False)
+#t2=time.time()
+#print ('direct:', t2-t)
