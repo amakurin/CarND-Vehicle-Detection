@@ -298,10 +298,11 @@ def build_classifier(cars, noncars, params, nsamples=None, result_file=None):
 def predict(imgs, clf, scaler, params, wins=None, dec_fn=False):
     X = get_feats(imgs, params, wins=wins)
     scaled_X = scaler.transform(X)
+    y_predicted = clf.predict(scaled_X)
     if dec_fn:
-        return clf.decision_function(X)
+        return y_predicted, clf.decision_function(X)
     else:    
-        return clf.predict(scaled_X)
+        return y_predicted
 
 def brute_force_params(cars, noncars, params_ranges, nsamples, result_file, save_each=20):
     params_sets = gen_param_set(params_ranges)
@@ -415,7 +416,10 @@ def search_cars(img, builtclf, win_specs, precalc_hog=False, dec_fn=False, dec_t
                         base_win, spec['xy_overlap'])  
         imgs = [scaled[win[0][1]:win[1][1], win[0][0]:win[1][0]] for win in spec_wins]
         prediction = predict(imgs,builtclf['clf'], builtclf['scaler'], params, wins=spec_wins, dec_fn=dec_fn)
-        found_wins = np.array(spec_wins)[(prediction > dec_thre)].tolist()
+        if dec_fn:
+            found_wins = np.array(spec_wins)[(prediction[0] > 0)&(prediction[1] > dec_thre)].tolist()    
+        else:
+            found_wins = np.array(spec_wins)[(prediction > 0)].tolist()
         for win in found_wins:
             win[0][0] = int(win[0][0] / x_scale)
             win[0][1] = int(win[0][1] / y_scale)
