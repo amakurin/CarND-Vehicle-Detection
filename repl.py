@@ -65,6 +65,8 @@ class Pipeline():
                 heat_lo_thresh=2,
                 heat_lo_thresh_per_frame=2,
                 heat_max_lo_thresh=8,
+                dec_fn = False,
+                dec_thre = 0,
                 precalc_hog = False):
         self.builtclf = builtclf
         self.win_specs = win_specs
@@ -72,6 +74,8 @@ class Pipeline():
         self.heat_lo_thresh = heat_lo_thresh
         self.heat_lo_thresh_per_frame = heat_lo_thresh_per_frame
         self.heat_max_lo_thresh = heat_max_lo_thresh
+        self.dec_fn = dec_fn,
+        self.dec_thre = dec_thre,
         self.precalc_hog = precalc_hog  
         self.init()
 
@@ -87,7 +91,9 @@ class Pipeline():
             self.heatmaps.append(zero_heat)
 
         found_wins = lu.search_cars(frame, self.builtclf, self.win_specs, 
-                        precalc_hog = self.precalc_hog)
+                        precalc_hog=self.precalc_hog,
+                        dec_fn=self.dec_fn,
+                        dec_thre=self.dec_thre)
         drawn_found = lu.draw_boxes(frame, found_wins)            
         heatmap = lu.add_heat(zero_heat, found_wins)
         totalheat = self.sum_heat_map(heatmap)
@@ -101,7 +107,7 @@ class Pipeline():
         self.heatmaps.append(toaggregate)
 
         drawn_bboxes = lu.draw_boxes(frame, filtered)            
-        if len(found_wins)>1: lu.plot_img_grid([drawn_found,heatmap, drawn_bboxes,totalheat], 2,2)
+        if len(found_wins)>0: lu.plot_img_grid([drawn_found,heatmap, drawn_bboxes,totalheat], 2,2)
         return drawn_bboxes
 
     def process_video(self, src_path, tgt_path):
@@ -122,11 +128,17 @@ pipeline = Pipeline(builtclf,
      heat_lo_thresh=6,
      heat_lo_thresh_per_frame=2,
      heat_max_lo_thresh=8,
-     precalc_hog=True)
+     precalc_hog=True,
+     dec_fn = True,
+     dec_thre = 20)
 
+#img = lu.imread('.\\dataset\\non-vehicles\\Extras\\extra831.png')
+#lu.plot_img_grid([img])
+#res = lu.predict([img], builtclf['clf'], builtclf['scaler'], builtclf['params'],decision_result=True)
+#print (res)
 #print (pipeline.win_specs_max_bounds((720,1280)))
 #pipeline.process_video('project_video.mp4', 'prout2.mp4')
-#pipeline.process_video('test_video.mp4', 'testout2.mp4')
+pipeline.process_video('test_video.mp4', 'testout2.mp4')
 #for img in tst_imgs:
 #    pipeline.init()
 #    pipeline.process_frame(img)

@@ -295,11 +295,13 @@ def build_classifier(cars, noncars, params, nsamples=None, result_file=None):
         save(result, result_file)
     return clf, scaler, params, accuracy, exttime, predtime, traintime  
 
-def predict(imgs, clf, scaler, params, wins=None):
+def predict(imgs, clf, scaler, params, wins=None, dec_fn=False):
     X = get_feats(imgs, params, wins=wins)
     scaled_X = scaler.transform(X)
-    y_predicted = clf.predict(scaled_X)
-    return y_predicted
+    if dec_fn:
+        return clf.decision_function(X)
+    else:    
+        return clf.predict(scaled_X)
 
 def brute_force_params(cars, noncars, params_ranges, nsamples, result_file, save_each=20):
     params_sets = gen_param_set(params_ranges)
@@ -387,7 +389,7 @@ def prepare_win_specs(win_specs, img_shape, base_win, base_overlap):
     bounds = np.array(bounds)
     return win_specs, [np.min(bounds[:,0]),np.max(bounds[:,1])], [np.min(bounds[:,2]),np.max(bounds[:,3])]
 
-def search_cars(img, builtclf, win_specs, precalc_hog=False):
+def search_cars(img, builtclf, win_specs, precalc_hog=False, dec_fn=False, dec_thre=0):
     base_win = [64,64]
     base_overlap = [0.5,0.5]
     win_specs, x_bounds, y_bounds = prepare_win_specs(win_specs, img.shape, base_win, base_overlap)
@@ -412,13 +414,20 @@ def search_cars(img, builtclf, win_specs, precalc_hog=False):
                         np.uint32(y_start_stop*y_scale),
                         base_win, spec['xy_overlap'])  
         imgs = [scaled[win[0][1]:win[1][1], win[0][0]:win[1][0]] for win in spec_wins]
-        prediction = predict(imgs,builtclf['clf'], builtclf['scaler'], params, wins=spec_wins)
-        found_wins = np.array(spec_wins)[prediction > 0].tolist()
+        prediction = predict(imgs,builtclf['clf'], builtclf['scaler'], params, wins=spec_wins, dec_fn=dec_fn)
+        found_wins = np.array(spec_wins)[(prediction > dec_thre)].tolist()
         for win in found_wins:
             win[0][0] = int(win[0][0] / x_scale)
             win[0][1] = int(win[0][1] / y_scale)
             win[1][0] = int(win[1][0] / x_scale)
             win[1][1] = int(win[1][1] / y_scale) 
+        #if (len(found_wins)<5):
+        #    i = builtclf.get('i',0)
+        #    wimgs = np.array(imgs)[prediction > 0]
+        #    for wimg in wimgs:
+        #        mpimg.imsave('{}{}-{}{}'.format('.\\hnm\\', 'win', i, '.jpg'), wimg)
+        #        i+=1
+        #    builtclf['i']=i
         wins.extend(found_wins)
     return np.array(wins)
 
