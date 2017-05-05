@@ -418,6 +418,8 @@ def search_cars(img, builtclf, win_specs, precalc_hog=False, dec_fn=False, dec_t
                         np.uint32(x_start_stop*x_scale),
                         np.uint32(y_start_stop*y_scale),
                         base_win, spec['xy_overlap'])  
+        #print ('spec_wins:', len(spec_wins))
+
         imgs = [scaled[win[0][1]:win[1][1], win[0][0]:win[1][0]] for win in spec_wins]
         prediction = predict(imgs,builtclf['clf'], builtclf['scaler'], params, wins=spec_wins, dec_fn=dec_fn)
         if dec_fn:
@@ -429,11 +431,11 @@ def search_cars(img, builtclf, win_specs, precalc_hog=False, dec_fn=False, dec_t
             win[0][1] = int(win[0][1] / y_scale)
             win[1][0] = int(win[1][0] / x_scale)
             win[1][1] = int(win[1][1] / y_scale) 
-        #if (len(found_wins)<5):
+        #if True:#(len(found_wins)<5):
         #    i = builtclf.get('i',0)
-        #    wimgs = np.array(imgs)[prediction > 0]
+        #    wimgs = np.array(imgs)#[prediction > 0]
         #    for wimg in wimgs:
-        #        mpimg.imsave('{}{}-{}{}'.format('.\\hnm\\', 'win', i, '.jpg'), wimg)
+        #        mpimg.imsave('{}{}-{}{}'.format('.\\hnmt\\', 'win', i, '.jpg'), wimg)
         #        i+=1
         #    builtclf['i']=i
         wins.extend(found_wins)

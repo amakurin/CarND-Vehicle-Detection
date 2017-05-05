@@ -74,8 +74,8 @@ class Pipeline():
         self.heat_lo_thresh = heat_lo_thresh
         self.heat_lo_thresh_per_frame = heat_lo_thresh_per_frame
         self.heat_max_lo_thresh = heat_max_lo_thresh
-        self.dec_fn = dec_fn,
-        self.dec_thre = dec_thre,
+        self.dec_fn = dec_fn
+        self.dec_thre = dec_thre
         self.precalc_hog = precalc_hog  
         self.init()
 
@@ -89,7 +89,6 @@ class Pipeline():
         zero_heat = np.zeros(frame.shape[:2])
         if len(self.heatmaps) == 0:
             self.heatmaps.append(zero_heat)
-
         found_wins = lu.search_cars(frame, self.builtclf, self.win_specs, 
                         precalc_hog=self.precalc_hog,
                         dec_fn=self.dec_fn,
@@ -118,30 +117,34 @@ class Pipeline():
 builtclf = lu.load('clfv2.p')
 
 pipeline = Pipeline(builtclf, 
-#    [{'y_start_stop':[400,500], 'xy_window':[64,64], 'xy_overlap':[0.7,0.7]},
-#     {'y_start_stop':[400,680], 'xy_window':(128,96), 'xy_overlap':[0.7,0.5]}],
-    [{'y_start_stop':[400,496], 'xy_window':[80,64], 'xy_overlap':[0.75,0.75]},
-     {'y_start_stop':[386,530], 'xy_window':[128,96], 'xy_overlap':[0.75,0.75]},
-     {'y_start_stop':[400,680], 'xy_window':[244,160], 'xy_overlap':[0.75,0.75]},
+    [{'y_start_stop':[400,464], 'xy_window':[80,64], 'xy_overlap':[0.7,0.5]},
+     {'y_start_stop':[400,496], 'xy_window':[132,96], 'xy_overlap':[0.9,0.5]},
+     {'y_start_stop':[464,680], 'xy_window':(128,128), 'xy_overlap':[0.5,0.5]}
      ],
+    #[{'y_start_stop':[400,496], 'xy_window':[80,64], 'xy_overlap':[0.75,0.75]},
+    # {'y_start_stop':[386,530], 'xy_window':[128,96], 'xy_overlap':[0.75,0.75]},
+    # {'y_start_stop':[400,680], 'xy_window':[244,160], 'xy_overlap':[0.75,0.75]},
+    # ],
      n_heat_aggregate=3,
-     heat_lo_thresh=6,
+     heat_lo_thresh=4,
      heat_lo_thresh_per_frame=2,
-     heat_max_lo_thresh=8,
+     heat_max_lo_thresh=6,
      precalc_hog=True,
-     dec_fn = True,
-     dec_thre = 20)
+     dec_fn = False,
+     dec_thre = 0)
 
 #img = lu.imread('.\\dataset\\non-vehicles\\Extras\\extra831.png')
 #lu.plot_img_grid([img])
 #res = lu.predict([img], builtclf['clf'], builtclf['scaler'], builtclf['params'],decision_result=True)
 #print (res)
 #print (pipeline.win_specs_max_bounds((720,1280)))
-#pipeline.process_video('project_video.mp4', 'prout2.mp4')
-pipeline.process_video('test_video.mp4', 'testout2.mp4')
+pipeline.process_video('project_video.mp4', 'prout2.mp4')
+#pipeline.process_video('test_video.mp4', 'testout2.mp4')
 #for img in tst_imgs:
 #    pipeline.init()
 #    pipeline.process_frame(img)
+#pipeline.process_frame(lu.imread('.\\test_video\\frame-16.jpg'))
+#pipeline.process_frame(lu.imread('.\\project_video\\frame-1034.jpg'))
 #
 #cProfile.run('pipeline.process_video("test_video.mp4", "testout2.mp4")')
 #cProfile.run('pipeline.process_frame(tst_imgs[6])')
