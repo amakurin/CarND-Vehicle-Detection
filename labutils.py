@@ -221,14 +221,12 @@ def prepare_train_test_sets(cars, noncars, params={},
                                         test_size=test_size, random_state=random_state)
     return [X_train, y_train], [X_test, y_test], scaler, round((t2-t)/len(X), 7)
 
-def train_svm(X, y, kernel=None, C=None, gamma=None):
-    if kernel is None:
-        kernel = 'rbf'
+def train_svm(X, y, C=None, dual=None):
     if C is None:
         C = 1.0
-    if gamma is None:
-        gamma = 'auto'
-    clf = LinearSVC(kernel=kernel, C=C, gamma=gamma)
+    if dual is None:
+        dual = True
+    clf = LinearSVC(C=C, dual=dual)
     t=time.time()
     clf.fit(X, y)
     t2 = time.time()
@@ -285,7 +283,7 @@ def build_classifier(cars, noncars, params, nsamples=None, result_file=None):
                                         params=params, take_samples=nsamples)
     print (exttime,'s per img to extract')
 
-    clf, traintime = train_svm(train[0], train[1], params.get('kernel'), params.get('C'), params.get('gamma'))
+    clf, traintime = train_svm(train[0], train[1], params.get('C'), params.get('dual'))
 
     print (traintime,'s to train')
     
