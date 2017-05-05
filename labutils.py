@@ -363,8 +363,8 @@ def slide_window(img_shape, x_start_stop=[None, None], y_start_stop=[None, None]
             endx = startx + xy_window[0]
             # Append window position to list
             window_list.append(((startx, starty), (endx, endy)))
-        if endx < xspan:
-            window_list.append(((xspan-xy_window[0], starty), (xspan, endy)))
+        #if endx < xspan:
+        #    window_list.append(((xspan-xy_window[0], starty), (xspan, endy)))
     # Return the list of windows
     return window_list
 
@@ -406,7 +406,7 @@ def search_cars(img, builtclf, win_specs, precalc_hog=False):
         params['base_win'] = base_win
         if precalc_hog:
             params['hog_precalc'] = hog_precalculate(scaled, params)
-            
+
         spec_wins = slide_window(scaled.shape, 
                         np.uint32(x_start_stop*x_scale),
                         np.uint32(y_start_stop*y_scale),
@@ -449,6 +449,7 @@ def add_heat(heatmap, bbox_list):
     return heatmap
 
 def chan_threshold(chan, lo_thresh):
+    chan = np.copy(chan)
     chan[chan <= lo_thresh] = 0
     return chan
 
@@ -468,6 +469,15 @@ def labels_bboxes(labels):
         # Define a bounding box based on min/max x and y
         bboxes.append(((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy))))
     return bboxes
+
+def filter_outlier_boxes(bboxes, total_heat, heat_max_lo_thresh, lo_xy_thresh=[48,48]):
+    result = []
+    for box in bboxes:
+        if (box[1][0]-box[0][0] > lo_xy_thresh[0]) \
+            and (box[1][1]-box[0][1] > lo_xy_thresh[1])\
+            and (np.max(total_heat[box[0][1]:box[1][1],box[0][0]:box[1][0]]) >= heat_max_lo_thresh):
+            result.append(box)
+    return result
 
 def draw_boxes(img, bboxes, color=(0, 0, 255), thick=6):
     # Make a copy of the image
@@ -508,20 +518,28 @@ def process_video(src_path, process_fn, tgt_path):
     white_clip = clip.fl_image(process_fn) 
     white_clip.write_videofile(tgt_path, audio=False)
     pass
+
+def save_video_frames(src_path, tgt_path, start=None, stop = None):
+    '''
+    Saves frames of video file on src_path to directory on tgt_path
+    '''
+    clip = VideoFileClip(src_path)
+    frames = clip.iter_frames()
+    if start is None:
+        start = 0
+    if stop is None:
+        stop = int(clip.fps * clip.duration)+100
+    src_filename = os.path.basename(src_path)
+    fn = 'frame'
+    ext = '.jpg'
+    i = 0
+    for frame in frames:
+        if (i>=start)and (i<=stop):
+            print ('{}{}-{}{}'.format(tgt_path, fn, i, ext)) 
+            mpimg.imsave('{}{}-{}{}'.format(tgt_path, fn, i, ext), frame)
+        i = i + 1
+    pass
     
-def load(path):
-    '''
-    Loads serialized obj from file on path
-    '''
-    obj = pickle.load(open(path, 'rb'))
-    return obj
-
-def save(obj, path):
-    '''
-    Serializes obj and saves to file specified by path
-    '''
-    pickle.dump(obj, open(path, 'wb'))
-
 def plot_img_grid(images, rows=None, cols=1, 
                     titles=None, 
                     figid=None, figsize=(9, 4), 

@@ -57,15 +57,23 @@ tst_imgs = glob.glob(tst_base_path+'*.jpg')
 tst_imgs = [lu.imread(imf) for imf in tst_imgs]
 
 class Pipeline():
+    def init(self):
+        self.heatmaps = colls.deque(maxlen=self.n_heat_aggregate)
+
     def __init__(self, builtclf, win_specs, 
-                n_heat_aggregate=3, heat_lo_thresh=2,
+                n_heat_aggregate=3, 
+                heat_lo_thresh=2,
+                heat_lo_thresh_per_frame=2,
+                heat_max_lo_thresh=8,
                 precalc_hog = False):
         self.builtclf = builtclf
         self.win_specs = win_specs
         self.n_heat_aggregate = n_heat_aggregate
         self.heat_lo_thresh = heat_lo_thresh
-        self.heatmaps = colls.deque(maxlen=n_heat_aggregate)
+        self.heat_lo_thresh_per_frame = heat_lo_thresh_per_frame
+        self.heat_max_lo_thresh = heat_max_lo_thresh
         self.precalc_hog = precalc_hog  
+        self.init()
 
     def sum_heat_map(self, heatmap = None):
         heatmaps  = list(self.heatmaps)
@@ -80,34 +88,50 @@ class Pipeline():
 
         found_wins = lu.search_cars(frame, self.builtclf, self.win_specs, 
                         precalc_hog = self.precalc_hog)
-        #drawn_found = lu.draw_boxes(frame, found_wins)            
+        drawn_found = lu.draw_boxes(frame, found_wins)            
         heatmap = lu.add_heat(zero_heat, found_wins)
         totalheat = self.sum_heat_map(heatmap)
-        self.heatmaps.append(heatmap)
+
         labels = lu.label_heatmap(totalheat, self.heat_lo_thresh)
         bboxes = lu.labels_bboxes(labels)
-        drawn_bboxes = lu.draw_boxes(frame, bboxes)            
-        #lu.plot_img_grid([drawn_found, drawn_bboxes])
+        filtered = lu.filter_outlier_boxes(bboxes, totalheat, self.heat_max_lo_thresh, (48,48))
+        
+        toaggregate = lu.chan_threshold(heatmap, self.heat_lo_thresh_per_frame)
+        toaggregate = lu.add_heat(toaggregate, filtered)
+        self.heatmaps.append(toaggregate)
+
+        drawn_bboxes = lu.draw_boxes(frame, filtered)            
+        if len(found_wins)>1: lu.plot_img_grid([drawn_found,heatmap, drawn_bboxes,totalheat], 2,2)
         return drawn_bboxes
 
     def process_video(self, src_path, tgt_path):
+        self.init()
         lu.process_video(src_path, self.process_frame, tgt_path)
         pass
 
 builtclf = lu.load('clfv2.p')
 
 pipeline = Pipeline(builtclf, 
-    [{'y_start_stop':[400,500], 'xy_window':[64,64], 'xy_overlap':[0.7,0.7]},
-     {'y_start_stop':[400,680], 'xy_window':(128,96), 'xy_overlap':[0.7,0.5]}],
+#    [{'y_start_stop':[400,500], 'xy_window':[64,64], 'xy_overlap':[0.7,0.7]},
+#     {'y_start_stop':[400,680], 'xy_window':(128,96), 'xy_overlap':[0.7,0.5]}],
+    [{'y_start_stop':[400,496], 'xy_window':[80,64], 'xy_overlap':[0.75,0.75]},
+     {'y_start_stop':[386,530], 'xy_window':[128,96], 'xy_overlap':[0.75,0.75]},
+     {'y_start_stop':[400,680], 'xy_window':[244,160], 'xy_overlap':[0.75,0.75]},
+     ],
      n_heat_aggregate=3,
-     heat_lo_thresh=3,
-     precalc_hog =True)
+     heat_lo_thresh=6,
+     heat_lo_thresh_per_frame=2,
+     heat_max_lo_thresh=8,
+     precalc_hog=True)
 
 #print (pipeline.win_specs_max_bounds((720,1280)))
+#pipeline.process_video('project_video.mp4', 'prout2.mp4')
 #pipeline.process_video('test_video.mp4', 'testout2.mp4')
-#pipeline.process_frame(tst_imgs[6])
-
-cProfile.run('pipeline.process_video("test_video.mp4", "testout2.mp4")')
+#for img in tst_imgs:
+#    pipeline.init()
+#    pipeline.process_frame(img)
+#
+#cProfile.run('pipeline.process_video("test_video.mp4", "testout2.mp4")')
 #cProfile.run('pipeline.process_frame(tst_imgs[6])')
 
 #img = tst_imgs[6]
