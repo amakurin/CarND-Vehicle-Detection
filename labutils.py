@@ -31,6 +31,9 @@ def cvt_color(img, cspace='RGB'):
         result = cv2.cvtColor(img, converter)
     return result
 
+def scale(img, max=255):
+    return np.uint8(img*max/np.max(img))
+
 def spatial_feats(img, cspace='RGB', size=32):
     feature_image = cvt_color(img, cspace)
     # Use cv2.resize().ravel() to create the feature vector
@@ -452,9 +455,9 @@ def search_cars(img, builtclf, win_specs, precalc_hog=False, dec_fn=False, dec_t
             win[1][1] = int(win[1][1] / y_scale) 
         #if True:#(len(found_wins)<5):
         #    i = builtclf.get('i',0)
-        #    wimgs = np.array(imgs)#[prediction > 0]
+        #    wimgs = [img for img,p in zip(imgs,prediction) if p>0]#
         #    for wimg in wimgs:
-        #        mpimg.imsave('{}{}-{}{}'.format('.\\hnmt\\', 'win', i, '.jpg'), wimg)
+        #        mpimg.imsave('{}{}-{}{}'.format('./hnmt/', 'win', i, '.jpg'), wimg)
         #        i+=1
         #    builtclf['i']=i
         wins.extend(found_wins)
