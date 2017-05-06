@@ -87,8 +87,6 @@ class Pipeline():
 
     def process_frame(self, frame):
         zero_heat = np.zeros(frame.shape[:2])
-        if len(self.heatmaps) == 0:
-            self.heatmaps.append(zero_heat)
         found_wins = lu.search_cars(frame, self.builtclf, self.win_specs, 
                         precalc_hog=self.precalc_hog,
                         dec_fn=self.dec_fn,
@@ -97,16 +95,19 @@ class Pipeline():
         heatmap = lu.add_heat(zero_heat, found_wins)
         totalheat = self.sum_heat_map(heatmap)
 
-        labels = lu.label_heatmap(totalheat, self.heat_lo_thresh)
+        agg_thre_ratio = (len(self.heatmaps) + 1)/(self.n_heat_aggregate + 1)
+        
+        labels = lu.label_heatmap(totalheat, self.heat_lo_thresh * agg_thre_ratio)
         bboxes = lu.labels_bboxes(labels)
-        filtered = lu.filter_outlier_boxes(bboxes, totalheat, self.heat_max_lo_thresh, (48,48))
+        filtered = lu.filter_outlier_boxes(bboxes, totalheat, self.heat_max_lo_thresh * agg_thre_ratio, (48,48))
         
         toaggregate = lu.chan_threshold(heatmap, self.heat_lo_thresh_per_frame)
-        toaggregate = lu.add_heat(toaggregate, filtered)
+        #toaggregate = lu.add_heat(toaggregate, filtered)
         self.heatmaps.append(toaggregate)
 
         drawn_bboxes = lu.draw_boxes(frame, filtered)            
-        if len(found_wins)>0: lu.plot_img_grid([drawn_found,heatmap, drawn_bboxes,totalheat], 2,2)
+        #if len(found_wins)>0: 
+        lu.plot_img_grid([drawn_found,heatmap, drawn_bboxes,totalheat], 2,2)
         return drawn_bboxes
 
     def process_video(self, src_path, tgt_path):
@@ -138,8 +139,14 @@ pipeline = Pipeline(builtclf,
 #res = lu.predict([img], builtclf['clf'], builtclf['scaler'], builtclf['params'],decision_result=True)
 #print (res)
 #print (pipeline.win_specs_max_bounds((720,1280)))
-pipeline.process_video('project_video.mp4', 'prout2.mp4')
-#pipeline.process_video('test_video.mp4', 'testout2.mp4')
+#pipeline.process_video('project_video.mp4', 'prout2.mp4')
+pipeline.process_video('test_video.mp4', 'testout2.mp4')
+
+#img = lu.imread('.\\dataset\\vehicles\\GTI_MiddleClose\\image0057.png')
+#
+#f, imgh =lu.hog_chan_feats(img[:,:,1], 9, 6, 2, vis=True)
+#lu.plot_img_grid([img,imgh])
+
 #for img in tst_imgs:
 #    pipeline.init()
 #    pipeline.process_frame(img)

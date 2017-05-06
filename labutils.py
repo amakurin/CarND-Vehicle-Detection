@@ -130,17 +130,15 @@ def hog_feats_precalc(params):
     precalc = params['hog_precalc']
     x_start, x_stop = params['x_bounds']
     y_start, y_stop = params['y_bounds']
-    base_win = np.array(params['base_win'])/pix_per_cell
+    base_win = np.array(params['base_win'])//pix_per_cell-1
 
     wxs = win[0][0]-x_start
-    wxe = win[1][0]-x_start
     wys = win[0][1]-y_start
-    wye = win[1][1]-y_start 
 
     wxs_cells = wxs // pix_per_cell 
-    wxe_cells = wxs_cells+int(base_win[0])-1 #wxe // pix_per_cell 
+    wxe_cells = wxs_cells+base_win[0] #wxe // pix_per_cell 
     wys_cells = wys // pix_per_cell 
-    wye_cells = wys_cells+int(base_win[1])-1 #wye // pix_per_cell 
+    wye_cells = wys_cells+base_win[1] #wye // pix_per_cell 
     hog_features = []
     for chan in precalc:
         chan_feats = chan[wys_cells:wye_cells, wxs_cells:wxe_cells,:,:,:]
@@ -334,7 +332,7 @@ def brute_force_params(cars, noncars, params_ranges, nsamples, result_file, save
     return result
 
 def slide_window(img_shape, x_start_stop=[None, None], y_start_stop=[None, None], 
-                    xy_window=(64, 64), xy_overlap=(0.5, 0.5)):
+                    xy_window=(64, 64), xy_overlap=(0.5, 0.5), pix_per_cell = None):
     # If x and/or y start/stop positions not defined, set to image size
     if x_start_stop[0] == None:
         x_start_stop[0] = 0
@@ -344,12 +342,22 @@ def slide_window(img_shape, x_start_stop=[None, None], y_start_stop=[None, None]
         y_start_stop[0] = 0
     if y_start_stop[1] == None: 
         y_start_stop[1] = img_shape[0]
+    # Adjust wins to cells if pix_per_cell is provided
+    if pix_per_cell is not None:
+        #print('original: ',xy_window,xy_overlap,x_start_stop,y_start_stop)
+        xy_overlap[0]= (xy_overlap[0]*xy_window[0]//pix_per_cell)*pix_per_cell/xy_window[0]
+        xy_overlap[1]= (xy_overlap[1]*xy_window[1]//pix_per_cell)*pix_per_cell/xy_window[1]
+        #print('adjusted: ',xy_window,xy_overlap,x_start_stop,y_start_stop)
     # Compute the span of the region to be searched    
     xspan = x_start_stop[1] - x_start_stop[0]
     yspan = y_start_stop[1] - y_start_stop[0]
     # Compute the number of pixels per step in x/y
     nx_pix_per_step = np.int(xy_window[0]*(1 - xy_overlap[0]))
     ny_pix_per_step = np.int(xy_window[1]*(1 - xy_overlap[1]))
+    if pix_per_cell is not None:
+        nx_pix_per_step = (nx_pix_per_step // pix_per_cell) * pix_per_cell
+        ny_pix_per_step = (ny_pix_per_step // pix_per_cell) * pix_per_cell
+
     # Compute the number of windows in x/y
     nx_buffer = np.int(xy_window[0]*(xy_overlap[0]))
     ny_buffer = np.int(xy_window[1]*(xy_overlap[1]))
@@ -387,7 +395,6 @@ def prepare_win_specs(win_specs, img_shape, base_win, base_overlap):
             ws['xy_window'] = base_win
         if 'xy_overlap' not in ws:
             ws['xy_overlap'] = base_overlap
-
         x_s, x_e = ws['x_start_stop']
         y_s, y_e = ws['y_start_stop']
         bounds.append([x_s, x_e, y_s, y_e])
@@ -397,6 +404,11 @@ def prepare_win_specs(win_specs, img_shape, base_win, base_overlap):
 def search_cars(img, builtclf, win_specs, precalc_hog=False, dec_fn=False, dec_thre=0):
     base_win = [64,64]
     base_overlap = [0.5,0.5]
+    params = builtclf['params']
+    params['base_win'] = base_win
+    pix_per_cell = None
+    if precalc_hog:
+        pix_per_cell = params['hog_pix_per_cell']
     win_specs, x_bounds, y_bounds = prepare_win_specs(win_specs, img.shape, base_win, base_overlap)
     wins = []
     for spec in win_specs:
@@ -407,17 +419,24 @@ def search_cars(img, builtclf, win_specs, precalc_hog=False, dec_fn=False, dec_t
         y_scale = base_win[1]/cur_win[1]
 
         scaled = cv2.resize(img, (0,0), fx=x_scale, fy=y_scale)
-        params = builtclf['params']
-        params['x_bounds'] = np.uint32(np.array(x_bounds)*x_scale)
-        params['y_bounds'] = np.uint32(np.array(y_bounds)*y_scale)
-        params['base_win'] = base_win
+        # Adjust bounds to cells if pix_per_cell is provided
+        if pix_per_cell is not None:
+            params['x_bounds'] = np.uint32(np.array(x_bounds)*x_scale // pix_per_cell * pix_per_cell)
+            params['y_bounds'] = np.uint32(np.array(y_bounds)*y_scale // pix_per_cell * pix_per_cell)
+            cur_x_bounds = np.uint32(x_start_stop*x_scale // pix_per_cell * pix_per_cell)
+            cur_y_bounds = np.uint32(y_start_stop*y_scale // pix_per_cell * pix_per_cell)
+        else:    
+            params['x_bounds'] = np.uint32(np.array(x_bounds)*x_scale)
+            params['y_bounds'] = np.uint32(np.array(y_bounds)*y_scale)
+            cur_x_bounds = np.uint32(x_start_stop*x_scale )
+            cur_y_bounds = np.uint32(y_start_stop*y_scale )
         if precalc_hog:
             params['hog_precalc'] = hog_precalculate(scaled, params)
 
         spec_wins = slide_window(scaled.shape, 
-                        np.uint32(x_start_stop*x_scale),
-                        np.uint32(y_start_stop*y_scale),
-                        base_win, spec['xy_overlap'])  
+                        cur_x_bounds,
+                        cur_y_bounds,
+                        base_win, spec['xy_overlap'], pix_per_cell=pix_per_cell)  
         #print ('spec_wins:', len(spec_wins))
 
         imgs = [scaled[win[0][1]:win[1][1], win[0][0]:win[1][0]] for win in spec_wins]
