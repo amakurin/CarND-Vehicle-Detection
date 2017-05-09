@@ -183,7 +183,7 @@ tst_imgs = [lu.imread(imf) for imf in tst_imgs]
 #res = lu.predict([img], builtclf['clf'], builtclf['scaler'], builtclf['params'],decision_result=True)
 #print (res)
 #print (pipeline.win_specs_max_bounds((720,1280)))
-pipeline.process_video('project_video.mp4', 'prout4hnm1.mp4')
+pipeline.process_video('project_video.mp4', 'prout4hnm10.mp4')
 #pipeline.process_video('test_video.mp4', 'testout4hnm1.mp4')
 
 #img = lu.imread('.\\dataset\\vehicles\\GTI_MiddleClose\\image0057.png')

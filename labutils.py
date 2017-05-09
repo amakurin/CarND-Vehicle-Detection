@@ -20,6 +20,11 @@ from sklearn.model_selection import train_test_split
 from scipy.ndimage.measurements import label
 
 def cvt_color(img, cspace='RGB'):
+    '''
+    Converts img to different color space
+    img - RGB image
+    cspace - one of 'RGB','LUV','YUV','HSV', 'HLS','YCrCb','gray'
+    '''
     cspacemap = {'RGB':None, 'HSV':cv2.COLOR_RGB2HSV,
                  'LUV':cv2.COLOR_RGB2LUV, 'HLS':cv2.COLOR_RGB2HLS,
                  'YUV':cv2.COLOR_RGB2YUV,'YCrCb':cv2.COLOR_RGB2YCrCb,
@@ -32,16 +37,29 @@ def cvt_color(img, cspace='RGB'):
     return result
 
 def scale(img, max=255):
+    '''
+    Scales img to max
+    '''
     return np.uint8(img*max/np.max(img))
 
 def spatial_feats(img, cspace='RGB', size=32):
+    '''
+    Computes spatial features of RGB img 
+    cspace - color space for pre convertion
+    size - size of template
+    '''
     feature_image = cvt_color(img, cspace)
-    # Use cv2.resize().ravel() to create the feature vector
     features = cv2.resize(feature_image, (size, size)).ravel() 
-    # Return the feature vector
     return features    
 
 def hist_feats(img, cspace = 'RGB', chan_range=None, bins=32, hrange=(0, 256)):
+    '''
+    Computes histogram features of an RGB img
+    cspace - color space for preconvertion
+    chan_range - string range of converted image's channels to use for feature extraction 'start_chan:end_chan' 
+    bins - number of histogram bins to compute on each channel
+    hrange - intensity range to use for histogram calculation
+    '''
     feature_image = cvt_color(img, cspace)
     hists = []
     if len(feature_image.shape)==2:
@@ -61,12 +79,20 @@ def hist_feats(img, cspace = 'RGB', chan_range=None, bins=32, hrange=(0, 256)):
 
 def hog_chan_feats(chan_img, orient, pix_per_cell, cell_per_block, 
               vis=False, feature_vec=True):
+    '''
+    Calculates HOG features of single channeled chan_img
+    orient - number of orintation histogram bins
+    pix_per_cell - number of pixels per cell
+    cell_per_block - number of cells per block
+    vis - if True, returns HOG image
+    feature_vec - if True, flattens calculated HOG to single dimensional vector
+    '''
     if vis == True:
         features, hog_image = skhog(chan_img, orientations=orient, 
                                 pixels_per_cell=(pix_per_cell, pix_per_cell),
                                 cells_per_block=(cell_per_block, cell_per_block), 
                                 transform_sqrt=False, 
-                                visualise=True, feature_vector=False)
+                                visualise=True, feature_vector=feature_vec)
         return features, hog_image
     else:      
         features = skhog(chan_img, orientations=orient, 
@@ -78,6 +104,12 @@ def hog_chan_feats(chan_img, orient, pix_per_cell, cell_per_block,
 
 def hog_feats(img, orient, pix_per_cell, cell_per_block,
               cspace='RGB', chan_range=None):
+    '''
+    Calculates vector of HOG features for RGB img
+    cspace - color space for preconvertion
+    chan_range - string range of converted image's channels to use for feature extraction 'start_chan:end_chan' 
+    orient, pix_per_cell, cell_per_block - same as for hog_chan_feats
+    '''
     feature_image = cvt_color(img, cspace)
     hog_features = []
     if len(feature_image.shape)==2:
@@ -99,6 +131,10 @@ def hog_feats(img, orient, pix_per_cell, cell_per_block,
     return hog_features
 
 def hog_precalculate(img, params):
+    '''
+    Precalculats HOG for RGB img with respect to
+    params - map of all params for hog_feats except img, param keys starts with 'hog_' prefix: eg hog_orient
+    '''
     orient = params['hog_orient']
     pix_per_cell = params['hog_pix_per_cell'] 
     cell_per_block= params['hog_cell_per_block']
@@ -127,33 +163,43 @@ def hog_precalculate(img, params):
     return hog
 
 def hog_feats_precalc(params):
-    #print ('hog precalc option')
+    '''
+    Calculates HOG feature vector of params['win'], with respect to params starting with hog_ prefix, using params['hog_precalc']
+    '''
+    # Extract all params needed
     win = params['win']
     pix_per_cell = params['hog_pix_per_cell']
     precalc = params['hog_precalc']
+    # Extract bounds used to precalculation 
     x_start, x_stop = params['x_bounds']
     y_start, y_stop = params['y_bounds']
     base_win = np.array(params['base_win'])//pix_per_cell-1
-
+    # Calculate win coords with relative to bounds
     wxs = win[0][0]-x_start
     wys = win[0][1]-y_start
-
+    # Calculte win coords in hog_cell units
     wxs_cells = wxs // pix_per_cell 
     wxe_cells = wxs_cells+base_win[0] #wxe // pix_per_cell 
     wys_cells = wys // pix_per_cell 
     wye_cells = wys_cells+base_win[1] #wye // pix_per_cell 
+    # Extract HOG values of win for each channel image
     hog_features = []
     for chan in precalc:
         chan_feats = chan[wys_cells:wye_cells, wxs_cells:wxe_cells,:,:,:]
         hog_features.append(chan_feats)
-    #print ('win:',win,'pix_per_cell:',pix_per_cell)
-    #print ('bounds:',(x_start, y_start), (x_stop, y_stop))
-    #print ('ws:',(wxs, wys), (wxe, wye))
-    #print ('wsc:',(wxs_cells, wys_cells), (wxe_cells, wye_cells))
-    #print ('p.shape:',p.shape)
+    # Flatten features and return
     return np.ravel(hog_features)
 
 def get_img_feats(img, params={}):
+    '''
+    Calcultes feature vector for an RGB img with respect to params
+    params - is a map with keys 
+    use_spat, use_hist, use_hog - if True, include features of corresponding type to feature vector
+    spat_* - same params as for spatial_feats
+    hist_* - same params as for hist_feats
+    hog_* - same params as for hog_feats
+    hog_precalc - precalculated HOG, if precalculation used, have to be provided with x_bounds and y_bounds keys - region on which HOG was precalculated
+    '''
     use_spatial        = params.get('use_spat', True)
     spat_cspace        = params.get('spat_cspace', 'RGB')
     spat_size          = params.get('spat_size', 32)
@@ -188,6 +234,11 @@ def get_img_feats(img, params={}):
     return np.concatenate((spat_fts, hist_fts, hog_fts))
 
 def get_feats(imgs, params, wins = None):
+    '''
+    Returns feature vectors for RGB imgs, calculted with respect to params
+    params - feature extraction params See get_img_feats
+    wins - windows corresponding to provided imgs, have to be specified when HOG precalc is used
+    '''
     feats = []
     i = 0
     for img in imgs:
@@ -200,6 +251,15 @@ def get_feats(imgs, params, wins = None):
 
 def prepare_train_test_sets(cars, noncars, params={},
                             test_size=0.2, random_state=0, take_samples=None):
+    '''
+    Prepares training and test sets of samples
+    cars - array of RGB cars images 64x64
+    noncars - array of RGB non cars images 64x64
+    params - feature extraction params See get_img_feats
+    test_size - ratio of test set size relative to whole dataset
+    random_state - shuffle random state initial value
+    take_samples - number of samples to take for each class
+    '''
     if take_samples is None:
         take_samples = min(len(cars), len(noncars))
 
@@ -223,6 +283,11 @@ def prepare_train_test_sets(cars, noncars, params={},
     return [X_train, y_train], [X_test, y_test], scaler, round((t2-t)/len(X), 7)
 
 def train_svm(X, y, C=None, dual=None):
+    '''
+    Returnes trained SVM classifier with linear kernel, C and dual paramaters used
+    X - vector of samples (future vectors)
+    y - vector of labels (1 - car, 0 - noncar)
+    '''
     if C is None:
         C = 1.0
     if dual is None:
@@ -234,6 +299,11 @@ def train_svm(X, y, C=None, dual=None):
     return clf, round(t2-t, 2)
 
 def test_clf(clf, X, y, n_predicts=None):
+    '''
+    Evaluates trained clf on test samples X. Returnes prediction, real labels, accuracy and time took to predict per sample 
+    y - real labels
+    n_predicts - number ofsambles to take from X for prediction
+    '''
     accuracy = round(clf.score(X, y), 4)
     if n_predicts is not None:
         X = X[:n_predicts]
@@ -244,6 +314,10 @@ def test_clf(clf, X, y, n_predicts=None):
     return y_predicted, y, accuracy, round((t2-t)/len(X), 7)
 
 def gen_param_set(param_ranges):
+    '''
+    Generates grid_like params set based on params_ranges
+    params_ranges - map with same keys as for get_img_feats and values - vectors of possible param values
+    '''
     def filter_without(filt, params_set, keys):
         remove_ks = [k for k in keys if k.startswith(filt)]
         use_param = 'use_'+filt
@@ -280,6 +354,12 @@ def gen_param_set(param_ranges):
     return params_set
 
 def build_classifier(cars, noncars, params, nsamples=None, result_file=None):
+    '''
+    Builds train and test set from cars and noncars images.
+    Extracts features using params, see get_img_feats
+    Takes nsamples of each class to train\test set
+    Writes trained classifier, scaler and params to result_file if specified
+    '''
     train, test, scaler, exttime = prepare_train_test_sets(cars, noncars, 
                                         params=params, take_samples=nsamples)
     print (exttime,'s per img to extract')
@@ -301,6 +381,11 @@ def build_classifier(cars, noncars, params, nsamples=None, result_file=None):
     return clf, scaler, params, accuracy, exttime, predtime, traintime  
 
 def predict(imgs, clf, scaler, params, wins=None, dec_fn=False):
+    '''
+    Computes predictions for imgs, using classifier clf, scaler and params for feature extraction
+    wins - corresponding sliding windows, have to be provided when HOG precalculation is used
+    dc_fn - if True, decision function values will be returned along with predictions
+    '''
     X = get_feats(imgs, params, wins=wins)
     scaled_X = scaler.transform(X)
     y_predicted = clf.predict(scaled_X)
@@ -310,6 +395,11 @@ def predict(imgs, clf, scaler, params, wins=None, dec_fn=False):
         return y_predicted
 
 def brute_force_params(cars, noncars, params_ranges, nsamples, result_file, save_each=20):
+    '''
+    Builds, trains and tests classifier using carsand noncars images for each possible combination of params in params_ranges
+    Takes nsamples for each class
+    Writes statistics to result_file each save_each combination of parameters
+    '''
     params_sets = gen_param_set(params_ranges)
     total = len(params_sets)
     cur = 1
@@ -336,6 +426,10 @@ def brute_force_params(cars, noncars, params_ranges, nsamples, result_file, save
 
 def slide_window(img_shape, x_start_stop=[None, None], y_start_stop=[None, None], 
                     xy_window=(64, 64), xy_overlap=(0.5, 0.5), pix_per_cell = None):
+    '''
+    Computes sliding windows of size xy_window with xy_overlap for img with img_shape
+    using x boundings x_start_stop, y boundings y_start_stop
+    '''
     # If x and/or y start/stop positions not defined, set to image size
     if x_start_stop[0] == None:
         x_start_stop[0] = 0
@@ -381,12 +475,15 @@ def slide_window(img_shape, x_start_stop=[None, None], y_start_stop=[None, None]
             endx = startx + xy_window[0]
             # Append window position to list
             window_list.append(((startx, starty), (endx, endy)))
-        #if endx < xspan:
-        #    window_list.append(((xspan-xy_window[0], starty), (xspan, endy)))
     # Return the list of windows
     return window_list
 
 def prepare_win_specs(win_specs, img_shape, base_win, base_overlap):
+    '''
+    Initializes windows specifications feeling missing parameters
+    Computes maximum ROI bounds
+    win_specs - vector of maps with keys - parameters to slide_window
+    '''
     bounds = []
     win_specs = win_specs.copy()
     for ws in win_specs:
@@ -405,6 +502,14 @@ def prepare_win_specs(win_specs, img_shape, base_win, base_overlap):
     return win_specs, [np.min(bounds[:,0]),np.max(bounds[:,1])], [np.min(bounds[:,2]),np.max(bounds[:,3])]
 
 def search_cars(img, builtclf, win_specs, precalc_hog=False, dec_fn=False, dec_thre=0):
+    '''
+    Finds sliding windows with nonzero predictions 
+    img - RGB img to analize
+    buildclf - map with keys clf - trained classifier, scaler - fitted scaler, params - feature extraction params 
+    win_specs - vector of maps with keys - parameters to slide_window
+    precalc_hog - if True, HOG precalculation will b used
+    dec_fn - if True, decision function result will be considered and thresholded by dec_thre as low threshold
+    '''
     base_win = [64,64]
     base_overlap = [0.5,0.5]
     params = builtclf['params']
@@ -440,7 +545,6 @@ def search_cars(img, builtclf, win_specs, precalc_hog=False, dec_fn=False, dec_t
                         cur_x_bounds,
                         cur_y_bounds,
                         base_win, spec['xy_overlap'], pix_per_cell=pix_per_cell)  
-        #print ('spec_wins:', len(spec_wins))
 
         imgs = [scaled[win[0][1]:win[1][1], win[0][0]:win[1][0]] for win in spec_wins]
         prediction = predict(imgs,builtclf['clf'], builtclf['scaler'], params, wins=spec_wins, dec_fn=dec_fn)
@@ -464,6 +568,9 @@ def search_cars(img, builtclf, win_specs, precalc_hog=False, dec_fn=False, dec_t
     return np.array(wins)
 
 def search_cars_v1(img, builtclf, win_specs, precalc_hog=False):
+    '''
+    Naive version of search_cars
+    '''
     wins = []
     for spec in win_specs:
         spec_wins = slide_window(img.shape, 
@@ -480,6 +587,9 @@ def search_cars_v1(img, builtclf, win_specs, precalc_hog=False):
     return wins[prediction > 0]
 
 def add_heat(heatmap, bbox_list):
+    '''
+    Increases increases `heat` of pixels of heatmap each time they falls into bounding box from bbox_list
+    '''
     # Iterate through list of bboxes
     for box in bbox_list:
         # Add += 1 for all pixels inside each bbox
@@ -490,16 +600,28 @@ def add_heat(heatmap, bbox_list):
     return heatmap
 
 def chan_threshold(chan, lo_thresh):
+    '''
+    Returns copy of chan with all pixels with values lower than lo_thresh set to zero
+    '''
     chan = np.copy(chan)
     chan[chan <= lo_thresh] = 0
     return chan
 
 def label_heatmap(heatmap, lo_thresh):
+    '''
+    Labels all separate nonzero regions of heatmap after thresholding
+    heatmap - single channelled image
+    lo_thresh - same as for chan_threshold 
+    '''
     heatmap = chan_threshold(heatmap, lo_thresh)
     labels = label(heatmap)
     return labels
 
 def labels_bboxes(labels):
+    '''
+    Returnes bounding boxes by labeled heatmap
+    labels - pair [labeled image, labels]
+    '''
     bboxes = []
     for car_number in range(1, labels[1]+1):
         # Find pixels with each car_number label value
@@ -512,6 +634,9 @@ def labels_bboxes(labels):
     return bboxes
 
 def filter_outlier_boxes(bboxes, total_heat, heat_max_lo_thresh, lo_xy_thresh=[48,48]):
+    '''
+    Filters bboxes out of bounding boxes of size less then lo_xy_thresh, or maximum heat withing box less then heat_max_lo_thresh
+    '''
     result = []
     for box in bboxes:
         if (box[1][0]-box[0][0] > lo_xy_thresh[0]) \
@@ -521,16 +646,18 @@ def filter_outlier_boxes(bboxes, total_heat, heat_max_lo_thresh, lo_xy_thresh=[4
     return result
 
 def draw_boxes(img, bboxes, color=(0, 0, 255), thick=6):
-    # Make a copy of the image
+    '''
+    Draws each of bounding box from bboxes on copy of img using color and thick 
+    '''
     imcopy = np.copy(img)
-    # Iterate through the bounding boxes
     for bbox in bboxes:
-        # Draw a rectangle given bbox coordinates
         cv2.rectangle(imcopy, tuple(bbox[0]), tuple(bbox[1]), color, thick)
-    # Return the image copy with boxes drawn
     return imcopy
 
 def prepare_dataset(base_dir, tgt_file):
+    '''
+    Composes text tgt_file with paths to all imgs inside child folders of base_dir
+    '''
     dirs = os.listdir(base_dir)
     count = 0
     with open(tgt_file, 'w') as f:
@@ -541,12 +668,18 @@ def prepare_dataset(base_dir, tgt_file):
     return count
     
 def load_dataset(src_file):
+    '''
+    Loads images from paths specified in text src_file
+    '''
     result = None
     with open(src_file) as f:
         result = [x.strip('\n') for x in f.readlines()]
     return result
 
 def imread(img_file):
+    '''
+    Uniformly reads png and jpg img_file as np RGB array 
+    '''
     img = cv2.imread(img_file)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     return img
@@ -615,10 +748,17 @@ def plot_img_grid(images, rows=None, cols=1,
     plt.show()
 
 def calc_bin_centers(hist):
+    '''
+    Calculates bin centers of hist
+    '''
     bin_edges = hist[1]
     return (bin_edges[1:]  + bin_edges[0:len(bin_edges)-1])/2
 
 def plot_hists(hists):
+    '''
+    Plots array of histograms
+    hists - array of len 3 of numpy hists  
+    '''
     bincen = calc_bin_centers(hists[0])
     fig = plt.figure(figsize=(12,3))
     plt.subplot(131)
