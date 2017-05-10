@@ -1,4 +1,4 @@
-** Vehicle Detection Project **
+**Vehicle Detection Project**
 
 The goals / steps of this project are the following:
 
@@ -83,11 +83,11 @@ So i chose 3-channelled HOG on YCrCb color space.
 
 #### 3. Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).
 
-Analysis of different combinations of parameters and differen feature types showed that top accuracy of linear SVM is achieved with including all thre types of features: color histograms of R, G and B channels, spatially binned RGB images of size 32x32, and 3-channelled HOG on YCrCb color space.
+Analysis of different combinations of parameters and differen feature types showed that top accuracy of linear SVM is achieved with including all three explored types of features: color histograms of R, G and B channels, spatially binned RGB images of size 32x32, and 3-channelled HOG on YCrCb color space.
 
 I wrote few routines to extract features of these types: `spatial_feats` lines 45-53 of `labutils.py`; `hist_feats` lines 55-78 of `labutils.py` and `hog_feats` lines 105-131 of `labutils.py`.
 
-Then i trained linear SVM with these set of features 285-341 of `labutils.py` 
+Then i trained linear SVM with this set of features 285-341 of `labutils.py` 
 
 I used mixture of GTI vehicle database and KITTI database of images as source for samples of [vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip) and [nonvehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/non-vehicles.zip) classes.
 
@@ -151,13 +151,15 @@ Here's a [link to my video result](./project_result.mp4)
 
 I recorded the positions of positive detections in each frame of the video.  From the positive detections I created a heatmap and then thresholded that map to identify vehicle positions.  I then used `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap.  I then assumed each blob corresponded to a vehicle.  I constructed bounding boxes to cover the area of each blob detected.  
 
+I also collected heatmaps for 3 last frames and peformed thresholding on integrated heatmap to better filter out false positives.
+
 Here's an example result showing the heatmap from a series of frames of video, the result of `scipy.ndimage.measurements.label()` and the bounding boxes then overlaid on the last frame of video:
 
-### Here are six frames and their corresponding heatmaps:
+### Here are three frames and their corresponding heatmaps:
 
 ![alt text][image5]
 
-### Here is the output of `scipy.ndimage.measurements.label()` on the integrated heatmap from all six frames:
+### Here is the output of `scipy.ndimage.measurements.label()` on the integrated heatmap from all three frames:
 ![alt text][image6]
 
 ### Here the resulting bounding boxes are drawn onto the last frame in the series:
@@ -171,5 +173,16 @@ Here's an example result showing the heatmap from a series of frames of video, t
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+##### Computational complexity
 
+The main problem i faced was computational complexity of feature extraction.
+Actually my current implementation is not ready to use for real time processing, but i see few directions to beat this. 
+
+One obvious way is to implement one of fast HOG algorithms, this includes precalculation of integral images and integral histograms, as well as lookup tables to reduce number of computations. After that one can consider methods to reduce number of windows to search. Actually on project video one could ignore leftmost part of frame because of separation rail.  
+
+Another way is to get rid of HOG and any particular feature extraction and go with deep learning, using CNN as a classifier. I'm not sure that this way is suitable for modest processors but with powerfull GPU, i guess, this is the way to go.  
+
+##### Accuracy
+
+As i mentioned above despite high accuracy on test set, classifier predicted to much false positives before hard negative mining was applied. Even after that there are still number of false positives that potentially dangerous (eg in the middle of empty lane). 
+My guess, that CNN could work better here as well. But more intelligent tracking could be another option.
