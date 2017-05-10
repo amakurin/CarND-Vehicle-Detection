@@ -9,13 +9,13 @@ The goals / steps of this project are the following:
 * Estimate a bounding box for vehicles detected.
 
 [//]: # (Image References)
-[image1]: ./examples/car_not_car.png
-[image2]: ./examples/HOG_example.jpg
-[image3]: ./examples/sliding_windows.jpg
-[image4]: ./examples/sliding_window.jpg
-[image5]: ./examples/bboxes_and_heat.png
-[image6]: ./examples/labels_map.png
-[image7]: ./examples/output_bboxes.png
+[car_not_car_my]: ./examples/car_not_car_my.png
+[hog_example]: ./examples/hog_example.png
+[sliding_windows]: ./examples/sliding_windows.png
+[sliding_window]: ./examples/sliding_window.png
+[bboxes_and_heat]: ./examples/bboxes_and_heat.png
+[labels_map]: ./examples/labels_map.png
+[output_bboxes]: ./examples/output_bboxes.png
 [video1]: ./project_video.mp4
 
 My project includes the following files:
@@ -43,14 +43,14 @@ The code for this step is contained in lines 80 through 131 of `labutils.py`.
 
 I started by reading in all the `vehicle` and `non-vehicle` images.  Here is an example of one of each of the `vehicle` and `non-vehicle` classes:
 
-![alt text][image1]
+![car_not_car][car_not_car_my]
 
 I then explored different color spaces and different `skimage.hog()` parameters (`orientations`, `pixels_per_cell`, and `cells_per_block`).  I grabbed random images from each of the two classes and displayed them to get a feel for what the `skimage.hog()` output looks like.
 
 Here is an example using the `YCrCb` color space and HOG parameters of `orientations=9`, `pixels_per_cell=(6, 6)` and `cells_per_block=(2, 2)`:
 
 
-![alt text][image2]
+![hog_example][hog_example]
 
 #### 2. Explain how you settled on your final choice of HOG parameters.
 
@@ -62,12 +62,12 @@ It turned out that most time consuming part of prediction was feature extraction
 
 But in the same time including HOG features in feature vector lead to increasing accuracy.
 
-Unfortunately i didn't found any combination of parameters with acceptable accuracy with computing HOG on less then two channels.
+Unfortunately, i didn't find any combination of parameters with acceptable accuracy with computing HOG on less then two channels.
 
 For two channels the best choise was L and S channel of HLS.
 For three channels the best choise of color space was YCrCb.
 
-I didn't see any dependency between chosen color space and other HOG parameters. Actually no matter what color space and channels were chosen the following combination of parameters always gave best accuracy:
+I didn't see any dependency between chosen color space and other HOG parameters. Actually, no matter what color space and channels were chosen the following combination of parameters always gave best accuracy:
 
 | Parameter        | Value         | 
 |:----------------:|:-------------:| 
@@ -124,7 +124,7 @@ The code for whole search algorithm is in lines 504-568 `labutils.py`.
 
 Here are examples of all 4 window specifications
 
-![alt text][image3]
+![sliding_windows][sliding_windows]
 
 #### 2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
 
@@ -138,7 +138,7 @@ I got accuracy 0.9909 on test set, but much less false positives on project vide
 
 Here are some example images:
 
-![alt text][image4]
+![sliding_window][sliding_window]
 ---
 
 ### Video Implementation
@@ -157,13 +157,13 @@ Here's an example result showing the heatmap from a series of frames of video, t
 
 ### Here are three frames and their corresponding heatmaps:
 
-![alt text][image5]
+![bboxes_and_heat][bboxes_and_heat]
 
 ### Here is the output of `scipy.ndimage.measurements.label()` on the integrated heatmap from all three frames:
-![alt text][image6]
+![labels_map][labels_map]
 
 ### Here the resulting bounding boxes are drawn onto the last frame in the series:
-![alt text][image7]
+![output_bboxes][output_bboxes]
 
 
 

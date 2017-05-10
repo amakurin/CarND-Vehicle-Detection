@@ -140,9 +140,11 @@ class Pipeline():
         drawn_bboxes = lu.draw_boxes(frame, filtered)            
         #if len(found_wins)>0: 
         #    lu.plot_img_grid([drawn_found,heatmap, drawn_bboxes,totalheat], 2,2)
+        
         return self.side_stack_imgs([drawn_bboxes, drawn_found, 
                         lu.scale(np.dstack((heatmap,heatmap,heatmap))), 
                         lu.scale(np.dstack((totalheat,totalheat,totalheat)))])
+
 
     def process_video(self, src_path, tgt_path):
         self.init()
@@ -170,8 +172,9 @@ pipeline = Pipeline(builtclf,
      dec_thre = 0)
 
 
-#tst_base_path = './test_images/'
-tst_base_path = './project_video/'
+#tst_base_path = '.\\test_images\\'
+
+tst_base_path = '.\\project_video\\'
 
 tst_imgs = glob.glob(tst_base_path+'*.jpg')
 
@@ -183,7 +186,7 @@ tst_imgs = [lu.imread(imf) for imf in tst_imgs]
 #res = lu.predict([img], builtclf['clf'], builtclf['scaler'], builtclf['params'],decision_result=True)
 #print (res)
 #print (pipeline.win_specs_max_bounds((720,1280)))
-pipeline.process_video('project_video.mp4', 'prout4hnm10.mp4')
+#pipeline.process_video('project_video.mp4', 'prout4hnm10.mp4')
 #pipeline.process_video('test_video.mp4', 'testout4hnm1.mp4')
 
 #img = lu.imread('.\\dataset\\vehicles\\GTI_MiddleClose\\image0057.png')
@@ -222,3 +225,64 @@ pipeline.process_video('project_video.mp4', 'prout4hnm10.mp4')
 #    hf = lu.hog_chan_feats(srch_img, 9, 6, 2, vis=False, feature_vec=False)
 #t2=time.time()
 #print ('direct:', t2-t)
+
+#car = lu.imread(cars[901])
+#notcar = lu.imread(noncars[10])
+#lu.plot_img_grid([car,notcar], 1,2, titles=['Car','Not car'])
+
+#car_ycc = lu.cvt_color(car,'YCrCb')
+#ft, car_ch1_hog = lu.hog_chan_feats(car_ycc[:,:,0],9,6,2,True,False)
+#ft, car_ch2_hog = lu.hog_chan_feats(car_ycc[:,:,1],9,6,2,True)
+#ft, car_ch3_hog = lu.hog_chan_feats(car_ycc[:,:,2],9,6,2,True)
+#
+#ncar_ycc = lu.cvt_color(notcar,'YCrCb')
+#
+#ft, ncar_ch1_hog = lu.hog_chan_feats(ncar_ycc[:,:,0],9,6,2,True)
+#ft, ncar_ch2_hog = lu.hog_chan_feats(ncar_ycc[:,:,1],9,6,2,True)
+#ft, ncar_ch3_hog = lu.hog_chan_feats(ncar_ycc[:,:,2],9,6,2,True)
+#
+#lu.plot_img_grid([car_ycc[:,:,0], car_ch1_hog, ncar_ycc[:,:,0],ncar_ch1_hog,
+#    car_ycc[:,:,1], car_ch2_hog, ncar_ycc[:,:,1],ncar_ch2_hog,
+#    car_ycc[:,:,2], car_ch3_hog, ncar_ycc[:,:,2],ncar_ch3_hog], 
+#    3,4, 
+#    titles=['Car CH-1', 'Car CH-1 HOG','Not car CH-1','Not car CH-1 HOG',
+#    'Car CH-2', 'Car CH-2 HOG','Not car CH-2','Not car CH-2 HOG',
+#    'Car CH-3', 'Car CH-3 HOG','Not car CH-3','Not car CH-3 HOG'],
+#    cmaps=['gray' for i in range(13)])
+
+#res = tst_imgs[0]
+#wss = [{'y_start_stop':[400,470], 'xy_window':[80,48], 'xy_overlap':[0.7,0.7]},
+#     {'y_start_stop':[400,482], 'xy_window':[80,64], 'xy_overlap':[0.8,0.7]},
+#     {'y_start_stop':[410,526], 'xy_window':[132,96], 'xy_overlap':[0.8,0.5]},
+#     {'y_start_stop':[420,680], 'xy_window':(128,128), 'xy_overlap':[0.5,0.5]}
+#     ]
+#colors = [(0, 0, 255), (51, 153, 255), (51, 255, 153), (255, 153, 51)]
+#i = 0
+#thick = 6
+#for ws in wss:
+#    wins = lu.slide_window(tst_imgs[0].shape
+#        ,y_start_stop=ws['y_start_stop']
+#        ,xy_window=ws['xy_window']
+#        ,xy_overlap=ws['xy_overlap']
+#        )
+#    res = lu.draw_boxes(res, wins, color=colors[i], thick=thick)
+#    i +=1
+#    thick -=1
+#lu.plot_img_grid([tst_imgs[0],res],1,2,titles=['Original', 'Windows'])
+
+#res = []
+#for img in tst_imgs[:4]:
+#    pipeline.init()
+#    res.append(pipeline.process_frame(img))
+#
+#lu.plot_img_grid(res,2,2,titles=['Example 1', 'Example 2', 'Example 3', 'Example 4'])
+
+
+#res = []
+#for img in tst_imgs[38:42]:
+#    #pipeline.init()
+#    l = pipeline.process_frame(img)
+#    res = l
+#
+#
+#lu.plot_img_grid([res],1,1)
