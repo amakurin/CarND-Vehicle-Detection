@@ -313,46 +313,6 @@ def test_clf(clf, X, y, n_predicts=None):
     t2 = time.time()
     return y_predicted, y, accuracy, round((t2-t)/len(X), 7)
 
-def gen_param_set(param_ranges):
-    '''
-    Generates grid_like params set based on params_ranges
-    params_ranges - map with same keys as for get_img_feats and values - vectors of possible param values
-    '''
-    def filter_without(filt, params_set, keys):
-        remove_ks = [k for k in keys if k.startswith(filt)]
-        use_param = 'use_'+filt
-        with_use = [ps for ps in params_set if ps.get(use_param, True)]
-        without_use = [ps for ps in params_set if not ps.get(use_param, True)]
-
-        filtered = []
-        for ps in without_use:
-            for k in remove_ks:
-                ps.pop(k, None)
-            filtered.append(ps)
-        filtered = [dict(s) for s in set(frozenset(d.items()) for d in filtered)]
-        with_use.extend(filtered)
-        return with_use
-
-    keys = [] 
-    vals = []
-    for key, value in sorted(param_ranges.items()):
-        keys.append(key)
-        vals.append(value)
-
-    params_set = []
-
-    for param_vals in itertools.product(*vals):
-        params = dict(zip(keys, param_vals))
-        params_set.append(params)
-
-    params_set = filter_without('spat', params_set, keys)
-    params_set = filter_without('hist', params_set, keys)
-    params_set = filter_without('hog', params_set, keys)
-    
-    params_set = [ps for ps in params_set if (ps.get('use_spat', True) or ps.get('use_hist', True) or ps.get('use_hog', True))]
-
-    return params_set
-
 def build_classifier(cars, noncars, params, nsamples=None, result_file=None):
     '''
     Builds train and test set from cars and noncars images.
@@ -393,6 +353,46 @@ def predict(imgs, clf, scaler, params, wins=None, dec_fn=False):
         return y_predicted, clf.decision_function(X)
     else:    
         return y_predicted
+
+def gen_param_set(param_ranges):
+    '''
+    Generates grid_like params set based on params_ranges
+    params_ranges - map with same keys as for get_img_feats and values - vectors of possible param values
+    '''
+    def filter_without(filt, params_set, keys):
+        remove_ks = [k for k in keys if k.startswith(filt)]
+        use_param = 'use_'+filt
+        with_use = [ps for ps in params_set if ps.get(use_param, True)]
+        without_use = [ps for ps in params_set if not ps.get(use_param, True)]
+
+        filtered = []
+        for ps in without_use:
+            for k in remove_ks:
+                ps.pop(k, None)
+            filtered.append(ps)
+        filtered = [dict(s) for s in set(frozenset(d.items()) for d in filtered)]
+        with_use.extend(filtered)
+        return with_use
+
+    keys = [] 
+    vals = []
+    for key, value in sorted(param_ranges.items()):
+        keys.append(key)
+        vals.append(value)
+
+    params_set = []
+
+    for param_vals in itertools.product(*vals):
+        params = dict(zip(keys, param_vals))
+        params_set.append(params)
+
+    params_set = filter_without('spat', params_set, keys)
+    params_set = filter_without('hist', params_set, keys)
+    params_set = filter_without('hog', params_set, keys)
+    
+    params_set = [ps for ps in params_set if (ps.get('use_spat', True) or ps.get('use_hist', True) or ps.get('use_hog', True))]
+
+    return params_set
 
 def brute_force_params(cars, noncars, params_ranges, nsamples, result_file, save_each=20):
     '''
